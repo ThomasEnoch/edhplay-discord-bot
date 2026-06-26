@@ -94,6 +94,9 @@ async function linkTip(userId: string): Promise<string> {
   return "\nTip: run `/link` to auto-create the EDH Play room when the pod launches.";
 }
 
+// Public drag-to-install page (GitHub Pages) for the bookmarklet.
+const LINK_PAGE_URL = "https://thomasenoch.github.io/edhplay-discord-bot/";
+
 // One-line bookmarklet: reads the EDH Play tokens from edhplay.com localStorage
 // and copies them as the JSON blob the /link modal accepts.
 const LINK_BOOKMARKLET =
@@ -104,13 +107,10 @@ function buildLinkHelp(): { embed: EmbedBuilder; row: ActionRowBuilder<ButtonBui
   const description = [
     "Pods already create rooms under the shared bot account, so **you usually don't need this** — link only if you want rooms under *your own* EDH Play account.",
     "",
-    "__Quickest — bookmarklet (one paste):__",
-    "1. Create a browser bookmark and set its **URL** to:",
-    "```\n" + LINK_BOOKMARKLET + "\n```",
-    "2. On edhplay.com (logged in), click that bookmark — it copies your tokens.",
-    "3. Hit **Enter tokens** below and paste into the first box.",
+    `__Easiest — setup page:__ open ${LINK_PAGE_URL} and drag the button to your bookmarks bar. Then, on edhplay.com (logged in), click it to copy your tokens, and hit **Enter tokens** below to paste them in.`,
     "",
-    "__Or by hand:__ edhplay.com → F12 → Application → Local Storage → copy `access_token` and `refresh_token`, then **Enter tokens** and paste both.",
+    "__Manual bookmarklet__ (if you can't use the page): make a bookmark with this URL, click it on edhplay.com, then **Enter tokens**:",
+    "```\n" + LINK_BOOKMARKLET + "\n```",
   ].join("\n");
 
   const embed = new EmbedBuilder()

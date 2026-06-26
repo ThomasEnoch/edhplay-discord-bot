@@ -62,7 +62,9 @@ paste) or a manual `access_token` + `refresh_token` (from `edhplay.com` →
 DevTools → Application → Local Storage).
 
 The bookmarklet (for `/link`) and the console snippet (for the service-account
-`.env` values) are in [docs/link-helper.md](docs/link-helper.md).
+`.env` values) are in [docs/link-helper.md](docs/link-helper.md). A drag-to-install
+version is published via GitHub Pages at
+<https://thomasenoch.github.io/edhplay-discord-bot/>.
 
 At launch the bot resolves the token in priority order: the host's own link → the
 service account → otherwise the pod launches **without** a room (still a useful
