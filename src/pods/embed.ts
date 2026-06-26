@@ -110,6 +110,11 @@ export function buildPodButtons(pod: Pod): ActionRowBuilder<ButtonBuilder>[] {
         .setLabel(pod.roomId ? "Open game room" : "Go to EDH Play")
         .setStyle(ButtonStyle.Link)
         .setURL(pod.roomId ? edhplay.roomUrl(pod.roomId) : config.edhplayWebBase),
+      // Keep the seat button after launch so people can still join or rejoin.
+      new ButtonBuilder()
+        .setCustomId(podCustomId(pod.isFull ? "waitlist" : "seat", pod.id))
+        .setLabel(pod.isFull ? "Join waitlist" : "Take a seat")
+        .setStyle(pod.isFull ? ButtonStyle.Secondary : ButtonStyle.Primary),
       new ButtonBuilder()
         .setCustomId(podCustomId("leave", pod.id))
         .setLabel("Leave")

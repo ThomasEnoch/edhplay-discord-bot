@@ -8,6 +8,7 @@ import {
   launchPod,
   cancelPod,
   sweepLaunchedPods,
+  refreshPod,
   LaunchError,
 } from "./pods/manager.js";
 
@@ -20,8 +21,17 @@ client.once(Events.ClientReady, async (c) => {
   podStore.load();
   console.log(`Rehydrated ${podStore.all().length} pod(s) from SQLite.`);
   await seedServiceAccount();
+  await refreshAllPods(client);
   startScheduler(client);
 });
+
+// Re-render every rehydrated pod so their messages reflect the current button
+// logic (e.g. after a code change), not whatever was rendered before a restart.
+async function refreshAllPods(client: Client): Promise<void> {
+  for (const pod of podStore.all()) {
+    await refreshPod(client, pod).catch(() => undefined);
+  }
+}
 
 client.on(Events.InteractionCreate, handleInteraction);
 

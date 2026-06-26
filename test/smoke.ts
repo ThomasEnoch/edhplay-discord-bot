@@ -79,6 +79,15 @@ check("leaving when not present is a no-op", () => {
   assert.equal(r.promoted, null);
 });
 
+check("a player can rejoin after leaving", () => {
+  const p = newPod(4);
+  p.join("a");
+  p.leave("a");
+  assert.equal(p.has("a"), false);
+  assert.equal(p.join("a"), "seated");
+  assert.deepEqual(p.seats, ["host", "a"]);
+});
+
 check("instant vs scheduled flag", () => {
   assert.equal(newPod(4, null).isInstant, true);
   assert.equal(newPod(4, Date.now() + 1000).isInstant, false);

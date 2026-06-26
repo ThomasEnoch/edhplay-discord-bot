@@ -9,7 +9,7 @@
   "scripts": {
     "build": "tsc",
     "typecheck": "tsc --noEmit",
-    "test": "tsx test/smoke.ts && tsx test/persistence.ts",
+    "test": "tsx test/smoke.ts && tsx test/persistence.ts && tsx test/buttons.ts",
     "deploy": "tsx src/deploy-commands.ts",
     "start": "node dist/index.js",
     "dev": "tsx watch src/index.ts"
