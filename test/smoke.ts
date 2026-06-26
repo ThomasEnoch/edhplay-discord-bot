@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { Pod } from "../src/pods/pod.ts";
 import { podCustomId, parsePodCustomId } from "../src/pods/ids.ts";
+import { parseLinkInput } from "../src/commands/linkInput.ts";
 
 let passed = 0;
 function check(name: string, fn: () => void) {
@@ -118,6 +119,31 @@ check("toSnapshot/restore preserves identity and state", () => {
   assert.equal(restored.reminderSent, true);
   assert.equal(restored.isInstant, false);
   assert.equal(restored.opts.maxPlayers, 4);
+});
+
+console.log("Link input parsing");
+
+check("accepts two raw token fields", () => {
+  assert.deepEqual(parseLinkInput("acc", "ref"), { access: "acc", refresh: "ref" });
+});
+
+check("accepts the bookmarklet JSON blob in field 1", () => {
+  const blob = JSON.stringify({ access_token: "A", refresh_token: "R" });
+  assert.deepEqual(parseLinkInput(blob, ""), { access: "A", refresh: "R" });
+});
+
+check("blob also accepts camelCase keys", () => {
+  const blob = JSON.stringify({ accessToken: "A", refreshToken: "R" });
+  assert.deepEqual(parseLinkInput(blob, ""), { access: "A", refresh: "R" });
+});
+
+check("trims surrounding whitespace", () => {
+  assert.deepEqual(parseLinkInput("  acc  ", "  ref  "), { access: "acc", refresh: "ref" });
+});
+
+check("throws when a token is missing", () => {
+  assert.throws(() => parseLinkInput("acc", ""));
+  assert.throws(() => parseLinkInput("", "ref"));
 });
 
 console.log("Button custom_id round-trip");

@@ -43,23 +43,36 @@ npm run dev                 # run the bot
 Bot needs the `Manage Channels` permission (for voice channels) and the
 `applications.commands` + `bot` scopes when invited.
 
-## The account-linking caveat (important)
+## EDH Play accounts (how the bot creates rooms)
 
 EDH Play has **no API keys**. Authentication is a Google-OAuth-issued JWT
-(`access_token` + `refresh_token`) stored in the browser. To create a room "as"
-a user, the bot needs that user's token.
+(`access_token` + `refresh_token`) stored in the browser, so to create a room the
+bot needs *someone's* token. There are two ways to provide one — use either or
+both:
 
-This scaffold uses the simplest honest approach: `/link` opens a modal where the
-user pastes their `access_token` and `refresh_token` (from `edhplay.com` →
-DevTools → Application → Local Storage). The bot stores them and refreshes via
-`POST /api/v1/auth/refresh`.
+**1. Shared service account (recommended).** Set `EDHPLAY_SERVICE_ACCESS_TOKEN`
+and `EDHPLAY_SERVICE_REFRESH_TOKEN` in `.env` to one account's tokens. The bot
+creates every room under that account, so friends never link anything — they
+just click the join link. Those rooms are owned by the service account on EDH
+Play, which rarely matters for casual play.
 
-**This is fine for a personal/portfolio MVP but not for public distribution.**
-The production-grade path is a small companion web page that runs EDH Play's
-Google OAuth flow and hands the bot the resulting tokens — which realistically
-needs cooperation from the EDH Play developer (the API is unofficial and
-undocumented). Treat all stored tokens as secrets: encrypt at rest and never log
-them.
+**2. Per-user link (optional).** Anyone can `/link` to have their own pods
+launched under their own account. The modal accepts the bookmarklet output (one
+paste) or a manual `access_token` + `refresh_token` (from `edhplay.com` →
+DevTools → Application → Local Storage).
+
+The bookmarklet (for `/link`) and the console snippet (for the service-account
+`.env` values) are in [docs/link-helper.md](docs/link-helper.md).
+
+At launch the bot resolves the token in priority order: the host's own link → the
+service account → otherwise the pod launches **without** a room (still a useful
+Discord coordination event). Tokens refresh via `POST /api/v1/auth/refresh`.
+
+**Security:** every token grants full access to its EDH Play account and is
+currently stored in plaintext SQLite — encrypt at rest before any real
+deployment, and never log them. The production-grade linking path is a companion
+OAuth web page, but it needs cooperation from the EDH Play dev (the API is
+unofficial and undocumented).
 
 ## Architecture
 

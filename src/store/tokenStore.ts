@@ -7,6 +7,10 @@ import type { StoredTokens } from "../edhplay/types.js";
 // is synchronous. SECURITY: these tokens grant full access to the user's EDH
 // Play account — encrypt them at rest before any real deployment.
 
+// Reserved token-store key for the shared service account. Not a valid Discord
+// snowflake, so it never collides with a real user id.
+export const SERVICE_TOKEN_KEY = "__service__";
+
 interface TokenRow {
   access_token: string;
   refresh_token: string;

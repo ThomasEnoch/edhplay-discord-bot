@@ -4,6 +4,8 @@ import {
   TextInputBuilder,
   TextInputStyle,
   ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
   MessageFlags,
   EmbedBuilder,
   type ChatInputCommandInteraction,
@@ -12,9 +14,10 @@ import {
 } from "discord.js";
 import { Pod } from "../pods/pod.js";
 import { createAndPostPod } from "../pods/manager.js";
-import { tokenStore, jwtExpiryMs } from "../store/tokenStore.js";
+import { tokenStore, jwtExpiryMs, SERVICE_TOKEN_KEY } from "../store/tokenStore.js";
 import { podStore } from "../store/podStore.js";
 import { edhplay, NotLinkedError } from "../edhplay/client.js";
+import { parseLinkInput } from "./linkInput.js";
 
 const FORMAT_CHOICES = [
   { name: "Commander", value: "commander" },
@@ -82,14 +85,71 @@ function readPodOptions(i: ChatInputCommandInteraction, scheduledAt: number | nu
   });
 }
 
-async function ensureLinked(i: ChatInputCommandInteraction): Promise<boolean> {
-  if (await tokenStore.isLinked(i.user.id)) return true;
-  await i.reply({
-    flags: MessageFlags.Ephemeral,
-    content:
-      "You need to link your EDH Play account first so I can create rooms as you. Run `/link`.",
-  });
-  return false;
+/** A gentle nudge appended to pod-creation replies when no room can be created. */
+async function linkTip(userId: string): Promise<string> {
+  // Linked personally, or a shared service account exists → rooms get created,
+  // so there's nothing to nudge about.
+  if (await tokenStore.isLinked(userId)) return "";
+  if (await tokenStore.isLinked(SERVICE_TOKEN_KEY)) return "";
+  return "\nTip: run `/link` to auto-create the EDH Play room when the pod launches.";
+}
+
+// One-line bookmarklet: reads the EDH Play tokens from edhplay.com localStorage
+// and copies them as the JSON blob the /link modal accepts.
+const LINK_BOOKMARKLET =
+  "javascript:(function(){try{var a=localStorage.getItem('access_token'),r=localStorage.getItem('refresh_token');if(!a||!r){alert('EDH Play tokens not found - log in on edhplay.com first.');return;}var b=JSON.stringify({access_token:a,refresh_token:r});var ok=function(){alert('EDH Play tokens copied. Paste into the bot /link box.');};if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(b).then(ok,function(){window.prompt('Copy this, paste into /link:',b);});}else{window.prompt('Copy this, paste into /link:',b);}}catch(e){alert('Error: '+e.message);}})();";
+
+/** The ephemeral how-to shown when someone runs /link. */
+function buildLinkHelp(): { embed: EmbedBuilder; row: ActionRowBuilder<ButtonBuilder> } {
+  const description = [
+    "Pods already create rooms under the shared bot account, so **you usually don't need this** — link only if you want rooms under *your own* EDH Play account.",
+    "",
+    "__Quickest — bookmarklet (one paste):__",
+    "1. Create a browser bookmark and set its **URL** to:",
+    "```\n" + LINK_BOOKMARKLET + "\n```",
+    "2. On edhplay.com (logged in), click that bookmark — it copies your tokens.",
+    "3. Hit **Enter tokens** below and paste into the first box.",
+    "",
+    "__Or by hand:__ edhplay.com → F12 → Application → Local Storage → copy `access_token` and `refresh_token`, then **Enter tokens** and paste both.",
+  ].join("\n");
+
+  const embed = new EmbedBuilder()
+    .setTitle("Link your EDH Play account")
+    .setColor(0x534ab7)
+    .setDescription(description);
+
+  const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder()
+      .setCustomId("link:open")
+      .setLabel("Enter tokens")
+      .setStyle(ButtonStyle.Primary),
+  );
+  return { embed, row };
+}
+
+/** The paste modal, opened from the /link help message's button. */
+export function buildLinkModal(): ModalBuilder {
+  const access = new TextInputBuilder()
+    .setCustomId("access_token")
+    .setLabel("Bookmarklet output or access_token")
+    .setStyle(TextInputStyle.Paragraph)
+    .setPlaceholder("Paste the bookmarklet output here — or just your access_token")
+    .setRequired(true);
+
+  const refresh = new TextInputBuilder()
+    .setCustomId("refresh_token")
+    .setLabel("refresh_token (optional)")
+    .setStyle(TextInputStyle.Short)
+    .setPlaceholder("Leave blank if you pasted the bookmarklet output above")
+    .setRequired(false);
+
+  return new ModalBuilder()
+    .setCustomId("link:submit")
+    .setTitle("Link EDH Play account")
+    .addComponents(
+      new ActionRowBuilder<ModalActionRowComponentBuilder>().addComponents(access),
+      new ActionRowBuilder<ModalActionRowComponentBuilder>().addComponents(refresh),
+    );
 }
 
 const commands: Command[] = [
@@ -103,12 +163,11 @@ const commands: Command[] = [
     })(),
     execute: async (i) => {
       if (!i.guildId) return;
-      if (!(await ensureLinked(i))) return;
       const pod = readPodOptions(i, null);
       await createAndPostPod(i.client, pod);
       await i.reply({
         flags: MessageFlags.Ephemeral,
-        content: `Pod opened. You're seated as host (1/${pod.opts.maxPlayers}).`,
+        content: `Pod opened. You're seated as host (1/${pod.opts.maxPlayers}).${await linkTip(i.user.id)}`,
       });
     },
   },
@@ -130,14 +189,13 @@ const commands: Command[] = [
     })(),
     execute: async (i) => {
       if (!i.guildId) return;
-      if (!(await ensureLinked(i))) return;
       const minutes = i.options.getInteger("minutes_from_now", true);
       const scheduledAt = Date.now() + minutes * 60_000;
       const pod = readPodOptions(i, scheduledAt);
       await createAndPostPod(i.client, pod);
       await i.reply({
         flags: MessageFlags.Ephemeral,
-        content: `Pod scheduled for <t:${Math.floor(scheduledAt / 1000)}:F>. It'll launch automatically.`,
+        content: `Pod scheduled for <t:${Math.floor(scheduledAt / 1000)}:F>. It'll launch automatically.${await linkTip(i.user.id)}`,
       });
     },
   },
@@ -193,29 +251,8 @@ const commands: Command[] = [
       .setDescription("Link your EDH Play account so the bot can create rooms as you")
       .toJSON(),
     execute: async (i) => {
-      const modal = new ModalBuilder()
-        .setCustomId("link:submit")
-        .setTitle("Link EDH Play account");
-
-      const access = new TextInputBuilder()
-        .setCustomId("access_token")
-        .setLabel("access_token")
-        .setStyle(TextInputStyle.Paragraph)
-        .setPlaceholder("Paste the access_token from edhplay.com localStorage")
-        .setRequired(true);
-
-      const refresh = new TextInputBuilder()
-        .setCustomId("refresh_token")
-        .setLabel("refresh_token")
-        .setStyle(TextInputStyle.Short)
-        .setPlaceholder("Paste the refresh_token (so the bot can stay logged in)")
-        .setRequired(true);
-
-      modal.addComponents(
-        new ActionRowBuilder<ModalActionRowComponentBuilder>().addComponents(access),
-        new ActionRowBuilder<ModalActionRowComponentBuilder>().addComponents(refresh),
-      );
-      await i.showModal(modal);
+      const { embed, row } = buildLinkHelp();
+      await i.reply({ flags: MessageFlags.Ephemeral, embeds: [embed], components: [row] });
     },
   },
 ];
@@ -224,11 +261,14 @@ export const commandMap = new Map(commands.map((c) => [c.data.name, c]));
 export const commandData = commands.map((c) => c.data);
 
 // Handles the /link modal submission. Wired from the interaction router.
-export async function handleLinkModal(accessToken: string, refreshToken: string, userId: string) {
+// field1 may be a raw access_token or the bookmarklet's JSON blob; field2 is the
+// refresh_token (optional when a blob supplies it). Throws on missing tokens.
+export async function handleLinkModal(field1: string, field2: string, userId: string) {
+  const { access, refresh } = parseLinkInput(field1, field2);
   await tokenStore.set(userId, {
-    accessToken: accessToken.trim(),
-    refreshToken: refreshToken.trim(),
-    expiresAt: jwtExpiryMs(accessToken.trim()),
+    accessToken: access,
+    refreshToken: refresh,
+    expiresAt: jwtExpiryMs(access),
   });
 }
 

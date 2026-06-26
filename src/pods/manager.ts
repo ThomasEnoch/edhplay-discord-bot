@@ -3,6 +3,7 @@ import { Pod } from "./pod.js";
 import { buildPodEmbed, buildPodButtons } from "./embed.js";
 import { podStore } from "../store/podStore.js";
 import { edhplay, NotLinkedError } from "../edhplay/client.js";
+import { tokenStore, SERVICE_TOKEN_KEY } from "../store/tokenStore.js";
 import {
   createPodVoiceChannel,
   cleanupPodVoiceChannel,
@@ -43,41 +44,65 @@ export async function refreshPod(client: Client, pod: Pod): Promise<void> {
 
 export class LaunchError extends Error {}
 
-/**
- * Launch a pod: create the EDH Play room using the HOST's linked account, spin
- * up a voice channel, mark the pod launched, and refresh the message. Returns
- * the room URL.
- */
-export async function launchPod(client: Client, pod: Pod): Promise<string> {
-  if (pod.status === "launched" && pod.roomId) return edhplay.roomUrl(pod.roomId);
+export interface LaunchResult {
+  /** EDH Play room id, or null if the pod launched without an auto-created room. */
+  roomId: string | null;
+  /** Join URL for the room, or null when there is no room. */
+  url: string | null;
+}
 
-  let room;
-  try {
-    room = await edhplay.createRoom(pod.opts.hostId, {
-      name: pod.opts.title,
-      format: pod.opts.format,
-      is_public: true,
-      max_players: pod.opts.maxPlayers,
-      bracket: pod.opts.bracket ?? null,
-      communication_preference: pod.opts.voice ? "voice" : "chat",
-      description: pod.opts.description ?? null,
-    });
-  } catch (err) {
-    if (err instanceof NotLinkedError) {
-      throw new LaunchError(
-        "The pod host hasn't linked an EDH Play account. Run `/link` first.",
-      );
+/**
+ * Launch a pod. If the host has linked EDH Play, create the room as them and
+ * post a join link; otherwise launch the pod as a Discord-only event (no room).
+ * Either way: spin up the voice channel, mark it launched, persist, and
+ * re-render. Only a genuine EDH Play API failure throws (LaunchError).
+ */
+export async function launchPod(client: Client, pod: Pod): Promise<LaunchResult> {
+  if (pod.status !== "launched") {
+    // Whose EDH Play account creates the room: the host's own link if they have
+    // one, else the shared service account, else nobody (roomless launch).
+    const tokenUserId = (await tokenStore.isLinked(pod.opts.hostId))
+      ? pod.opts.hostId
+      : (await tokenStore.isLinked(SERVICE_TOKEN_KEY))
+        ? SERVICE_TOKEN_KEY
+        : null;
+
+    let roomId: string | null = null;
+    if (tokenUserId) {
+      try {
+        const room = await edhplay.createRoom(tokenUserId, {
+          name: pod.opts.title,
+          format: pod.opts.format,
+          is_public: true,
+          max_players: pod.opts.maxPlayers,
+          bracket: pod.opts.bracket ?? null,
+          communication_preference: pod.opts.voice ? "voice" : "chat",
+          description: pod.opts.description ?? null,
+        });
+        roomId = room.id;
+      } catch (err) {
+        // Token expired and refresh failed: launch without a room. Anything else
+        // is a real API failure and should surface to the caller.
+        if (!(err instanceof NotLinkedError)) {
+          throw new LaunchError(
+            `Couldn't create the EDH Play room: ${(err as Error).message}`,
+          );
+        }
+      }
     }
-    throw new LaunchError(`Couldn't create the EDH Play room: ${(err as Error).message}`);
+
+    pod.roomId = roomId;
+    pod.status = "launched";
+    pod.launchedAt = Date.now();
+    await createPodVoiceChannel(client, pod).catch(() => null);
+    podStore.save(pod);
+    await refreshPod(client, pod);
   }
 
-  pod.roomId = room.id;
-  pod.status = "launched";
-  pod.launchedAt = Date.now();
-  await createPodVoiceChannel(client, pod).catch(() => null);
-  podStore.save(pod);
-  await refreshPod(client, pod);
-  return edhplay.roomUrl(room.id);
+  return {
+    roomId: pod.roomId,
+    url: pod.roomId ? edhplay.roomUrl(pod.roomId) : null,
+  };
 }
 
 /**

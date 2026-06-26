@@ -1,5 +1,5 @@
 import { MessageFlags, type Interaction } from "discord.js";
-import { commandMap, handleLinkModal } from "../commands/index.js";
+import { commandMap, handleLinkModal, buildLinkModal } from "../commands/index.js";
 import { parsePodCustomId } from "../pods/embed.js";
 import { podStore } from "../store/podStore.js";
 import { refreshPod, launchPod, cancelPod, LaunchError } from "../pods/manager.js";
@@ -13,9 +13,18 @@ export async function handleInteraction(interaction: Interaction): Promise<void>
     }
 
     if (interaction.isModalSubmit() && interaction.customId === "link:submit") {
-      const access = interaction.fields.getTextInputValue("access_token");
-      const refresh = interaction.fields.getTextInputValue("refresh_token");
-      await handleLinkModal(access, refresh, interaction.user.id);
+      const field1 = interaction.fields.getTextInputValue("access_token");
+      const field2 = interaction.fields.getTextInputValue("refresh_token");
+      try {
+        await handleLinkModal(field1, field2, interaction.user.id);
+      } catch {
+        await interaction.reply({
+          flags: MessageFlags.Ephemeral,
+          content:
+            "Couldn't read your tokens. Paste the bookmarklet output into the first box, or fill in both token fields manually.",
+        });
+        return;
+      }
       await interaction.reply({
         flags: MessageFlags.Ephemeral,
         content: "EDH Play account linked. You can now host pods with `/lfg` or `/schedule`.",
@@ -24,6 +33,11 @@ export async function handleInteraction(interaction: Interaction): Promise<void>
     }
 
     if (interaction.isButton()) {
+      if (interaction.customId === "link:open") {
+        await interaction.showModal(buildLinkModal());
+        return;
+      }
+
       const parsed = parsePodCustomId(interaction.customId);
       if (!parsed) return;
       const pod = podStore.get(parsed.podId);
@@ -84,8 +98,12 @@ export async function handleInteraction(interaction: Interaction): Promise<void>
         }
         await interaction.deferReply({ flags: MessageFlags.Ephemeral });
         try {
-          const url = await launchPod(interaction.client, pod);
-          await interaction.editReply({ content: `Game room created: ${url}` });
+          const { url } = await launchPod(interaction.client, pod);
+          await interaction.editReply({
+            content: url
+              ? `Game room created: ${url}`
+              : "Pod launched! I couldn't auto-create an EDH Play room — link your account with `/link` to enable that. For now, set up the game on EDH Play.",
+          });
         } catch (err) {
           await interaction.editReply({
             content:

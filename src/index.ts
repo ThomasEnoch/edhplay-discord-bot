@@ -2,6 +2,7 @@ import { Client, Events, GatewayIntentBits } from "discord.js";
 import { config } from "./config.js";
 import { handleInteraction } from "./interactions/router.js";
 import { podStore } from "./store/podStore.js";
+import { tokenStore, SERVICE_TOKEN_KEY, jwtExpiryMs } from "./store/tokenStore.js";
 import type { Pod } from "./pods/pod.js";
 import {
   launchPod,
@@ -14,14 +15,33 @@ const client = new Client({
   intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildVoiceStates],
 });
 
-client.once(Events.ClientReady, (c) => {
+client.once(Events.ClientReady, async (c) => {
   console.log(`Logged in as ${c.user.tag}`);
   podStore.load();
   console.log(`Rehydrated ${podStore.all().length} pod(s) from SQLite.`);
+  await seedServiceAccount();
   startScheduler(client);
 });
 
 client.on(Events.InteractionCreate, handleInteraction);
+
+// Seed the shared service account from env so hosts who haven't linked their own
+// EDH Play account can still launch real rooms. Re-seeded every boot; the runtime
+// refresh flow keeps the access token fresh from there.
+async function seedServiceAccount(): Promise<void> {
+  const access = config.edhplayServiceAccessToken;
+  const refresh = config.edhplayServiceRefreshToken;
+  if (!access || !refresh) {
+    console.log("No shared service account set — hosts must /link to create rooms.");
+    return;
+  }
+  await tokenStore.set(SERVICE_TOKEN_KEY, {
+    accessToken: access,
+    refreshToken: refresh,
+    expiresAt: jwtExpiryMs(access),
+  });
+  console.log("Shared EDH Play service account configured.");
+}
 
 // Polls scheduled pods (15-minute reminder + auto-launch) and sweeps finished
 // pods. A real deployment would use a durable job queue instead of an in-process

@@ -67,9 +67,13 @@ export function buildPodEmbed(pod: Pod): EmbedBuilder {
       text:
         pod.status === "cancelled"
           ? "This pod was cancelled."
-          : pod.isInstant
-            ? "Launches an EDH Play room when the pod fills."
-            : "Launches automatically at start time. Reminder 15 min before.",
+          : pod.status === "launched"
+            ? pod.roomId
+              ? "Pod launched — room created on EDH Play."
+              : "Pod launched — set up your game on EDH Play."
+            : pod.isInstant
+              ? "Launches an EDH Play room when the pod fills."
+              : "Launches automatically at start time. Reminder 15 min before.",
     });
 
   if (pod.waitlist.length) {
@@ -86,6 +90,12 @@ export function buildPodEmbed(pod: Pod): EmbedBuilder {
       value: `[Join on EDH Play](${edhplay.roomUrl(pod.roomId)})`,
       inline: false,
     });
+  } else if (pod.status === "launched") {
+    embed.addFields({
+      name: "Game room",
+      value: `No room was auto-created. Set one up at [EDH Play](${config.edhplayWebBase}) — or the host can \`/link\` for one-click rooms.`,
+      inline: false,
+    });
   }
 
   return embed;
@@ -97,7 +107,7 @@ export function buildPodButtons(pod: Pod): ActionRowBuilder<ButtonBuilder>[] {
   if (pod.status === "launched") {
     const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder()
-        .setLabel("Open game room")
+        .setLabel(pod.roomId ? "Open game room" : "Go to EDH Play")
         .setStyle(ButtonStyle.Link)
         .setURL(pod.roomId ? edhplay.roomUrl(pod.roomId) : config.edhplayWebBase),
       new ButtonBuilder()

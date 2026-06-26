@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex" />
+  <title>Link your EDH Play account to the pod bot</title>
+  <style>
+    :root { color-scheme: dark; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; min-height: 100vh; display: flex; align-items: center;
+      justify-content: center; padding: 2rem;
+      font: 16px/1.6 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      background: #1a1726; color: #e7e3f4;
+    }
+    main { width: 100%; max-width: 640px; }
+    h1 { font-size: 1.6rem; margin: 0 0 .25rem; }
+    p.lede { color: #b3acca; margin-top: 0; }
+    .card { background: #241f36; border: 1px solid #38314f; border-radius: 14px;
+      padding: 1.5rem; margin: 1.25rem 0; }
+    .drag {
+      display: inline-block; padding: .85rem 1.4rem; border-radius: 10px;
+      background: #6c5ce0; color: #fff; font-weight: 700; text-decoration: none;
+      cursor: grab; border: 1px solid #8576f0; user-select: none;
+    }
+    .drag:active { cursor: grabbing; }
+    ol { padding-left: 1.25rem; } li { margin: .4rem 0; }
+    code { background: #16121f; padding: .1rem .4rem; border-radius: 5px;
+      font-family: ui-monospace, Menlo, Consolas, monospace; font-size: .9em; }
+    .hint { color: #9890b5; font-size: .9rem; }
+    kbd { background:#16121f; border:1px solid #38314f; border-bottom-width:2px;
+      border-radius:5px; padding:.05rem .4rem; font-size:.85em; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>🎴 Link your EDH Play account</h1>
+    <p class="lede">
+      Only needed if you want pods to launch rooms under <em>your own</em> EDH
+      Play account. Otherwise the bot already creates rooms for you — just click
+      the join links.
+    </p>
+
+    <div class="card">
+      <p><strong>Step 1 — install the button (once).</strong> Drag this to your
+      bookmarks bar:</p>
+      <p>
+        <!-- Bookmarklet: reads the EDH Play tokens from localStorage and copies
+             them as the JSON blob the /link modal accepts. && is HTML-escaped. -->
+        <a class="drag" href="javascript:(function(){try{var a=localStorage.getItem('access_token'),r=localStorage.getItem('refresh_token');if(!a||!r){alert('EDH Play tokens not found - log in on edhplay.com first.');return;}var b=JSON.stringify({access_token:a,refresh_token:r});var ok=function(){alert('EDH Play tokens copied. Paste into the bot /link box.');};if(navigator.clipboard&amp;&amp;navigator.clipboard.writeText){navigator.clipboard.writeText(b).then(ok,function(){window.prompt('Copy this, paste into /link:',b);});}else{window.prompt('Copy this, paste into /link:',b);}}catch(e){alert('Error: '+e.message);}})();">⬇ EDH&nbsp;Play&nbsp;→&nbsp;bot</a>
+      </p>
+      <p class="hint">
+        No bookmarks bar? Press <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>B</kbd>
+        (Windows) or <kbd>⌘</kbd>+<kbd>Shift</kbd>+<kbd>B</kbd> (Mac) to show it,
+        then drag.
+      </p>
+    </div>
+
+    <div class="card">
+      <p><strong>Step 2 — use it.</strong></p>
+      <ol>
+        <li>Go to <code>edhplay.com</code> and make sure you're logged in.</li>
+        <li>Click the <strong>EDH Play → bot</strong> bookmark — it copies your tokens.</li>
+        <li>In Discord, run <code>/link</code> → <strong>Enter tokens</strong> → paste into the first box. Done.</li>
+      </ol>
+      <p class="hint">
+        Your tokens are copied to your clipboard and only go into the bot's
+        <code>/link</code> box — they never pass through this page or anyone else.
+      </p>
+    </div>
+  </main>
+</body>
+</html>

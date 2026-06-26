@@ -105,6 +105,17 @@ export const edhplay = {
       body: JSON.stringify(input),
     });
     const data = await parseOrThrow<CreateRoomResponse>(res);
+    if (!data?.room) {
+      // 200 OK but no room (e.g. the account isn't allowed to host yet).
+      // Surface the server's reason instead of letting `data.room.id` throw.
+      throw new EdhPlayError(
+        data?.reason
+          ? `EDH Play declined the room: ${data.reason}`
+          : "EDH Play returned no room (success was false).",
+        res.status,
+        data,
+      );
+    }
     return data.room;
   },
 
