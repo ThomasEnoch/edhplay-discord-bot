@@ -118,6 +118,35 @@ export async function cancelPod(client: Client, pod: Pod): Promise<string[]> {
   return notify;
 }
 
+/**
+ * Start a "one more game": clone the finished pod (same settings + roster), post
+ * it, and launch a fresh room. Idempotent — if this pod already spawned a next
+ * game, returns that one instead of creating another.
+ */
+export async function startRematch(
+  client: Client,
+  pod: Pod,
+): Promise<{ pod: Pod; created: boolean; launchError: string | null }> {
+  const existing = pod.nextPodId ? podStore.get(pod.nextPodId) : undefined;
+  if (existing) return { pod: existing, created: false, launchError: null };
+
+  const next = pod.rematch();
+  pod.nextPodId = next.id; // mark synchronously to guard against double-clicks
+  podStore.add(next);
+  podStore.save(pod);
+
+  await postPod(client, next);
+
+  let launchError: string | null = null;
+  try {
+    await launchPod(client, next);
+  } catch (err) {
+    launchError =
+      err instanceof LaunchError ? err.message : "the room couldn't be created";
+  }
+  return { pod: next, created: true, launchError };
+}
+
 /** Create + post a pod in one call. */
 export async function createAndPostPod(
   client: Client,

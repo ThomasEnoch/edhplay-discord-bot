@@ -34,6 +34,7 @@ export interface PodSnapshot {
   reminderSent: boolean;
   launchedAt: number | null;
   launchFailures: number;
+  nextPodId: string | null;
   seats: string[];
   waitlist: string[];
   opts: PodOptions;
@@ -50,6 +51,8 @@ export class Pod {
   launchedAt: number | null = null;
   /** Consecutive failed auto-launch attempts; bounded so we don't retry forever. */
   launchFailures = 0;
+  /** Id of the "one more game" pod spawned from this one, if any. */
+  nextPodId: string | null = null;
 
   /** Discord user IDs in join order; index 0 is the host. */
   readonly seats: string[] = [];
@@ -75,6 +78,7 @@ export class Pod {
     pod.reminderSent = s.reminderSent;
     pod.launchedAt = s.launchedAt;
     pod.launchFailures = s.launchFailures;
+    pod.nextPodId = s.nextPodId ?? null;
     return pod;
   }
 
@@ -131,6 +135,18 @@ export class Pod {
     return notify;
   }
 
+  /**
+   * Build a fresh "one more game" pod: same settings and roster, new id, open
+   * and instant (starts now). The caller posts and launches it.
+   */
+  rematch(): Pod {
+    const next = new Pod({ ...this.opts, scheduledAt: null });
+    next.seats.length = 0;
+    next.seats.push(...this.seats);
+    next.waitlist.push(...this.waitlist);
+    return next;
+  }
+
   toSnapshot(): PodSnapshot {
     return {
       id: this.id,
@@ -141,6 +157,7 @@ export class Pod {
       reminderSent: this.reminderSent,
       launchedAt: this.launchedAt,
       launchFailures: this.launchFailures,
+      nextPodId: this.nextPodId,
       seats: [...this.seats],
       waitlist: [...this.waitlist],
       opts: this.opts,

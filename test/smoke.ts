@@ -105,6 +105,22 @@ check("cancel sets status and returns seated + waitlisted", () => {
   assert.equal(p.status, "cancelled");
 });
 
+console.log("Pod rematch");
+
+check("rematch clones settings + roster into a fresh open pod", () => {
+  const p = newPod(4, 1_700_000_000_000); // scheduled
+  p.join("a");
+  p.join("b");
+  p.status = "launched";
+  const next = p.rematch();
+  assert.notEqual(next.id, p.id);
+  assert.equal(next.status, "open");
+  assert.equal(next.isInstant, true); // starts now, not scheduled
+  assert.deepEqual(next.seats, ["host", "a", "b"]);
+  assert.equal(next.opts.maxPlayers, 4);
+  assert.equal(next.opts.title, p.opts.title);
+});
+
 console.log("Pod snapshot round-trip");
 
 check("toSnapshot/restore preserves identity and state", () => {
@@ -116,6 +132,7 @@ check("toSnapshot/restore preserves identity and state", () => {
   p.status = "launched";
   p.launchedAt = 999;
   p.reminderSent = true;
+  p.nextPodId = "next1";
 
   const restored = Pod.restore(p.toSnapshot());
   assert.equal(restored.id, p.id);
@@ -126,6 +143,7 @@ check("toSnapshot/restore preserves identity and state", () => {
   assert.equal(restored.status, "launched");
   assert.equal(restored.launchedAt, 999);
   assert.equal(restored.reminderSent, true);
+  assert.equal(restored.nextPodId, "next1");
   assert.equal(restored.isInstant, false);
   assert.equal(restored.opts.maxPlayers, 4);
 });

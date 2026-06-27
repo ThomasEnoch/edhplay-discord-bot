@@ -2,7 +2,13 @@ import { MessageFlags, type Interaction } from "discord.js";
 import { commandMap, handleLinkModal, buildLinkModal } from "../commands/index.js";
 import { parsePodCustomId } from "../pods/embed.js";
 import { podStore } from "../store/podStore.js";
-import { refreshPod, launchPod, cancelPod, LaunchError } from "../pods/manager.js";
+import {
+  refreshPod,
+  launchPod,
+  cancelPod,
+  startRematch,
+  LaunchError,
+} from "../pods/manager.js";
 
 export async function handleInteraction(interaction: Interaction): Promise<void> {
   try {
@@ -138,6 +144,28 @@ export async function handleInteraction(interaction: Interaction): Promise<void>
           await interaction.followUp({
             content: `${others.map((id) => `<@${id}>`).join(" ")} — **${pod.opts.title}** was cancelled by the host.`,
           });
+        }
+        return;
+      }
+
+      if (parsed.action === "again") {
+        await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+        try {
+          const { pod: next, created, launchError } = await startRematch(
+            interaction.client,
+            pod,
+          );
+          const link = next.messageId
+            ? ` https://discord.com/channels/${next.opts.guildId}/${next.opts.channelId}/${next.messageId}`
+            : "";
+          const base = created
+            ? `🔁 One more game!${link}`
+            : `One more game is already going.${link}`;
+          await interaction.editReply({
+            content: launchError ? `${base}\n(Heads up: ${launchError})` : base,
+          });
+        } catch {
+          await interaction.editReply({ content: "Couldn't start another game." });
         }
         return;
       }

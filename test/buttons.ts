@@ -57,6 +57,14 @@ check("launched pod still offers a seat (rejoin after leaving)", () => {
   assert.ok(ids.some((id) => id.startsWith("pod:leave:")));
 });
 
+check("launched pod offers one more game", () => {
+  const p = makePod();
+  p.status = "launched";
+  p.roomId = "r";
+  const ids = customIds(buildPodButtons(p));
+  assert.ok(ids.some((id) => id.startsWith("pod:again:")));
+});
+
 check("full launched pod offers the waitlist", () => {
   const p = makePod();
   p.status = "launched";
